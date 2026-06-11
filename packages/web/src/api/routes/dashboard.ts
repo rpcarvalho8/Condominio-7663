@@ -653,7 +653,7 @@ export const dashboard = new Hono()
       portaoGaragem: {
         saldoConta: saldos.saldo_portao,
         // Recalcular a_receber e pago a partir dos morosos dinâmicos (DB remove quem pagou)
-        aReceber: portaoMorososDinamico.length >= 0 ? portaoAReceberDinamico : saldos.a_receber_portao,
+        aReceber: portaoAReceberDinamico,
         pago: portaoPagoDinamico,
         totalOrcamento: 707.25,
         morosos: portaoMorososDinamico,
