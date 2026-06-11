@@ -20,6 +20,17 @@ import { configuracoesRoutes } from "./routes/configuracoes";
 import { relatorioRoutes, scheduleRelatoriosCron } from "./routes/relatorio";
 import { avisosRoutes, scheduleAvisosCron } from "./routes/avisos";
 
+// ─── Sync imediato no arranque do servidor ────────────────────────────────────
+(async () => {
+  try {
+    console.log("[bank-startup] A sincronizar banco no arranque...");
+    await runBankSync();
+    console.log("[bank-startup] Sync concluído.");
+  } catch (e) {
+    console.error("[bank-startup] Erro no sync inicial:", e);
+  }
+})();
+
 // ─── 2x daily bank sync (8:00 and 20:00) ─────────────────────────────────────
 (function scheduleBankSync() {
   const TWELVE_HOURS = 12 * 60 * 60 * 1000;
