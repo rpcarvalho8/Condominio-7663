@@ -10,16 +10,20 @@ import { eq } from "drizzle-orm";
 //   - Quota-Extra: €4,140.79 (conta Abanca separada, real: €4,401.93)
 //   - Obras Fachada: €26,912.37 (conta Abanca separada, real: €26,495.53)
 //   - Incêndio: €0 (obra paga ao empreiteiro — €157.98 ainda por receber de G/AC/AD)
+// SINCRONIZADO com SALDO_DEFAULTS em dashboard.ts — manter em sync ao alterar.
 const DEFAULTS: Record<string, string> = {
-  saldo_conta_corrente: "2778.86",
-  saldo_fundo_reserva: "277.89",
-  atraso_fundo_reserva: "28.41",
-  saldo_obras: "26912.37",
-  saldo_quota_extra: "4140.79",
-  saldo_incendio: "0",
-  a_receber_incendio: "157.98",
-  a_receber_obras: "6006.05",
-  a_receber_quota_extra: "1777.88",
+  saldo_conta_corrente:  "2778.86",
+  saldo_fundo_reserva:   "277.89",
+  atraso_fundo_reserva:  "7.21",    // corrigido: L pagou 25.47€ (23.99 pré-2026 + parcial Jan)
+  saldo_obras:           "26912.37",
+  saldo_quota_extra:     "4140.79",
+  saldo_incendio:        "0",
+  a_receber_incendio:    "157.98",
+  a_receber_obras:       "6006.05",
+  a_receber_quota_extra: "1723.56", // 1777.88 - 28.97(AH portão 07/05) - 25.35(AI portão 07/05)
+  saldo_portao:          "0",
+  a_receber_portao:      "593.27",  // 707.25 - 59.66(base) - 25.35(AI) - 28.97(AH)
+  portao_pago:           "113.98",  // 59.66 + 25.35 + 28.97
 };
 
 export const configuracoesRoutes = new Hono()

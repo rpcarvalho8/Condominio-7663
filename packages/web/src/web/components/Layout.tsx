@@ -19,7 +19,8 @@ import {
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { authClient, clearToken } from "../lib/auth";
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+// useEffect and useState no longer needed for morosos-count (migrated to useQuery)
 
 const NAV_ITEMS = [
   { href: "/", label: "Visão Geral", icon: LayoutDashboard },
@@ -43,16 +44,16 @@ const ADMIN_ITEMS = [
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const { data: session } = authClient.useSession();
-  const [morososCount, setMorososCount] = useState<number | null>(null);
 
-  useEffect(() => {
-    fetch("/api/dashboard/morosos-count", {
-      headers: { Authorization: `Bearer ${localStorage.getItem("bm_token") ?? ""}` },
-    })
-      .then(r => r.json())
-      .then(d => setMorososCount(d.count ?? null))
-      .catch(() => {});
-  }, []);
+  const { data: morososData } = useQuery<{ count: number }>({
+    queryKey: ["morosos-count"],
+    queryFn: () =>
+      fetch("/api/dashboard/morosos-count", {
+        headers: { Authorization: `Bearer ${localStorage.getItem("bm_token") ?? ""}` },
+      }).then(r => r.json()),
+    staleTime: 30_000,
+  });
+  const morososCount = morososData?.count ?? null;
 
   async function handleLogout() {
     await authClient.signOut();

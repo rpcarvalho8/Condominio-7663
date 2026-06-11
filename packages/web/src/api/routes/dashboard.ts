@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { db } from "../database";
 import * as schema from "../database/schema";
-import { eq, and, sql, ne } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 
 // ─────────────────────────────────────────────────────────
 // DADOS REAIS DO EXCEL — devedores por conta
@@ -206,39 +206,8 @@ async function upsertSaldo(chave: string, valor: number): Promise<void> {
  *  - portao / incendio: a_receber recalculado (Excel − pagos DB)
  */
 export async function recalcularSaldos(): Promise<void> {
-  const agora = new Date();
-  const anoAtual = agora.getFullYear();
-  const mesAtual = agora.getMonth() + 1;
-
-  // ── Conta corrente: saldo estimado ──────────────────────────────────────────
-  // Receita YTD (quotas condomínio pagas)
-  const inicioAno = new Date(anoAtual, 0, 1);
-  const fimMesAtual = new Date(anoAtual, mesAtual, 0, 23, 59, 59);
-
-  const quotasPagasYTD = await db
-    .select({ valor: schema.quotas.valor })
-    .from(schema.quotas)
-    .where(and(
-      eq(schema.quotas.tipo, "condominio"),
-      eq(schema.quotas.pago, true),
-      sql`${schema.quotas.ano} = ${anoAtual}`,
-    ));
-  const receitaYTD = quotasPagasYTD.reduce((s, q) => s + q.valor, 0);
-
-  const despesasYTD = await db
-    .select({ valor: schema.despesas.valor })
-    .from(schema.despesas)
-    .where(and(
-      sql`${schema.despesas.data} >= ${Math.floor(inicioAno.getTime() / 1000)}`,
-      sql`${schema.despesas.data} <= ${Math.floor(fimMesAtual.getTime() / 1000)}`,
-    ));
-  const totalDespesasYTD = despesasYTD.reduce((s, d) => s + d.valor, 0);
-
-  // Saldo conta corrente = saldo inicial (SALDO_DEFAULTS) + receita YTD − despesas YTD
-  // Usamos o valor já em configuracoes como base (para não resetar ajustes manuais)
-  const saldosActuais = await getSaldos();
-  // Nota: não sobrescrevemos saldo_conta_corrente automaticamente — é auditado manualmente
-  // Apenas actualizamos os campos que o sync altera directamente.
+  // Nota: saldo_conta_corrente e saldo_obras são saldos bancários reais —
+  // não são sobrescritos aqui; requerem conciliação manual.
 
   // ── Obras: a_receber da DB ──────────────────────────────────────────────────
   const obrasEmAtraso = await db
@@ -316,14 +285,16 @@ export async function recalcularSaldos(): Promise<void> {
   await upsertSaldo("a_receber_incendio", aReceberInc);
 
   // ── Fundo reserva: atraso calculado da DB ───────────────────────────────────
-  const fundoEmAtraso = await db
-    .select({ valor: schema.quotas.valor })
+  // O fundo de reserva está no campo `fundoReserva` (real) das quotas tipo="condominio",
+  // não em linhas separadas com tipo="fundo_reserva". A query anterior (LIKE 'fundo%') nunca retornava nada.
+  const fundoEmAtrasoRows = await db
+    .select({ fundoReserva: schema.quotas.fundoReserva })
     .from(schema.quotas)
     .where(and(
-      sql`tipo LIKE 'fundo%'`,
+      eq(schema.quotas.tipo, "condominio"),
       eq(schema.quotas.pago, false),
     ));
-  const atrasoFundoBD = fundoEmAtraso.reduce((s, q) => s + q.valor, 0);
+  const atrasoFundoBD = fundoEmAtrasoRows.reduce((s, q) => s + (q.fundoReserva ?? 0), 0);
   if (atrasoFundoBD > 0) {
     await upsertSaldo("atraso_fundo_reserva", Math.round(atrasoFundoBD * 100) / 100);
   }
