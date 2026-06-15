@@ -168,26 +168,32 @@ async function preAuditoria() {
 
   // Verificar dívidas na BD vs Matriz (BD deve ter 0 se nunca processadas; Matriz tem os valores reais do Excel)
   subheader("Auditoria dívidas BD vs Matriz");
-  let dividasBDZero = 0;
-  let dividasMatrizNaoZero = 0;
+  // BD < Matriz é VÁLIDO — indica amortizações já aplicadas (progresso real).
+  // Só alertar quando BD = 0 e Matriz > 0 (seed nunca foi aplicado).
+  let semSeed = 0;
+  let comAmortizacoes = 0;
+  let emSincronia = 0;
   for (const row of (fracoesBD as any).rows ?? []) {
     const fMatriz = getFracaoById(row.numero as string);
     if (!fMatriz) continue;
     const { obras, incendio, indaqua, motor } = fMatriz.dividasAtuais;
     const totalMatriz = obras + incendio + indaqua + motor;
-    if (totalMatriz > 0) dividasMatrizNaoZero++;
+    if (totalMatriz === 0) continue; // sem dívida na Matriz — ignorar
+    const bdRow = await db.get<{ obras: number; incendio: number; indaqua: number; motor: number }>(
+      sql`SELECT obras_divida as obras, incendio_divida as incendio, indaqua_divida as indaqua, motor_divida as motor FROM fracoes WHERE numero = ${row.numero} LIMIT 1`
+    );
+    if (!bdRow) continue;
+    const totalBD = (bdRow.obras ?? 0) + (bdRow.incendio ?? 0) + (bdRow.indaqua ?? 0) + (bdRow.motor ?? 0);
+    if (totalBD === 0) semSeed++;         // BD nunca foi populada — seed em falta
+    else if (totalBD < totalMatriz - 0.01) comAmortizacoes++; // BD < Matriz — amortizações aplicadas (OK)
+    else emSincronia++;
   }
-  const dividasBDRows = await db.run(
-    sql`SELECT numero, obras_divida+incendio_divida+indaqua_divida+motor_divida as total FROM fracoes WHERE obras_divida+incendio_divida+indaqua_divida+motor_divida = 0`
-  );
-  dividasBDZero = ((dividasBDRows as any).rows ?? []).length;
 
-  if (dividasMatrizNaoZero > 0) {
-    warn(`${dividasMatrizNaoZero} fração(ões) com dívidas NA MATRIZ (Excel) mas BD tem tudo a 0.`);
-    warn("→ Dívidas da Matriz não foram sincronizadas para a BD — a cascata vai usar valores BD (0).");
-    warn("→ ACÇÃO RECOMENDADA: Correr script de seed de dívidas ou usar PATCH /api/identity/fracoes/:id/dividas.");
+  if (semSeed > 0) {
+    warn(`${semSeed} fração(ões) com dívidas BD=€0 mas Matriz>0 — seed em falta.`);
+    warn("→ ACÇÃO RECOMENDADA: Correr bun scripts/seed-dividas.ts");
   } else {
-    ok("Dívidas BD e Matriz em sincronia");
+    ok(`Dívidas BD verificadas — ${emSincronia} em sincronia exacta | ${comAmortizacoes} com amortizações aplicadas`);
   }
 }
 
@@ -643,8 +649,6 @@ function imprimirRelatorio(resultados: TestResult[]) {
   }
 
   console.log(`\n${C.bold}${C.yellow}  NOTAS / DESVIOS CONHECIDOS:${C.reset}`);
-  console.log(`  ${C.yellow}• BD.fracoes.dividas está tudo a 0 — seed do Excel não foi aplicado à BD.${C.reset}`);
-  console.log(`  ${C.yellow}• A cascata de amortização usa BD como fonte de verdade → sem efeito real até seed.${C.reset}`);
   console.log(`  ${C.yellow}• Fração AC partilha IBAN com J; AF partilha com N; AH partilha com AI — issue Excel conhecido.${C.reset}`);
   console.log(`${C.bold}${"═".repeat(60)}${C.reset}\n`);
 }
