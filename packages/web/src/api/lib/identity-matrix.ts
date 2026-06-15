@@ -493,15 +493,7 @@ export async function getFracaoByIBAN(iban: string): Promise<FracaoIdentidade[]>
   if (static_?.length) return static_;
 
   // 2. IBANs aprendidos em runtime (coluna ibans_conhecidos da BD)
-  const rows = await db
-    .select({ numero: fracoes.numero })
-    .from(fracoes)
-    .where(sql`json_each.value = ${norm}`)
-    // SQLite: filtrar dentro de JSON array
-    // Equivalente real: WHERE EXISTS (SELECT 1 FROM json_each(ibans_conhecidos) WHERE value = ?)
-    .limit(5);
-
-  // Nota: Drizzle/SQLite não suporta json_each directamente em where(). Fazemos query manual:
+  // SQLite: json_each precisa de estar no FROM, não no WHERE — usar db.run() manual.
   const rawRows = await db.run(
     sql`SELECT numero FROM fracoes WHERE EXISTS (
           SELECT 1 FROM json_each(ibans_conhecidos) WHERE value = ${norm}
@@ -646,8 +638,8 @@ function descricaoMencaonaFracao(descricao: string, idFracao: string): boolean {
   const d = normStr(descricao);
   const id = idFracao.toUpperCase();
 
-  // "FRACAO X", "FRACC X", "FRACÇAO X"
-  if (new RegExp(`FRACA[OC]A?O\\s+${id}\\b`).test(d)) return true;
+  // "FRACAO X", "FRACCAO X", "FRACÃO X", "FRAÇÃO X"
+  if (new RegExp(`(FRACAO|FRACCAO|FRAC[AÃ]O|FRA[CÇ][AÃ]O)\\s+${id}\\b`).test(d)) return true;
   // "AB HAB" ou "AB RC" (lojas/hab + id no início)
   if (new RegExp(`^${id}\\s+(HAB|RC|LOJA|GAR)`).test(d)) return true;
   // "ENTRADA NN XY" onde XY == idFracao (ex: ENTRADA 21 1A... mas 1A != J)
