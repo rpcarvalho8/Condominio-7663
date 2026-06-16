@@ -157,13 +157,15 @@ export const bankMovementsRoutes = new Hono()
       // ── Passo 1: Gravar nova classificação + repor imported=0 ──────────────
       // Repor imported=0 força processarStagedTransactions() a reprocessar esta TXN.
       // requiresManualReview=0 para que não seja ignorada pelo motor.
+      // status → "booked" obrigatório: o motor de amortização ignora "pending".
+      // imported=0 força reprocessamento; requiresManualReview=0 remove bloqueio.
       await db
         .update(bankTransactions)
         .set({
           importType: classificacao,
           imported: 0,
           requiresManualReview: 0,
-          status: "pending",
+          status: "booked",
         })
         .where(eq(bankTransactions.id, id));
 

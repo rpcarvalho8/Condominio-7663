@@ -188,6 +188,7 @@ export default function MovimentosBancariosPage() {
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["fracoes"] });
       qc.invalidateQueries({ queryKey: ["quotas"] });
+      qc.invalidateQueries({ queryKey: ["morosos"] });
       // Toast de confirmação
       setToast("✨ Movimento reclassificado e saldos recalculados com sucesso!");
     },
