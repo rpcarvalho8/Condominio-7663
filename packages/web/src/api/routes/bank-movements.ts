@@ -16,8 +16,11 @@ export const bankMovementsRoutes = new Hono()
       const force = c.req.query("force") === "1";
       const { condominio, obras } = getCSVResults(force);
 
+      const csvDisponivel = !!(condominio || obras);
+
       return c.json({
         ok: true,
+        csvDisponivel,
         condominio: condominio ? {
           ficheiro: condominio.ficheiro,
           totalMovimentos: condominio.totalMovimentos,

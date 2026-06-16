@@ -117,6 +117,7 @@ export default function MovimentosBancariosPage() {
   });
 
   const stats: Stats | null = overview?.condominio?.estatisticas ?? null;
+  const csvDisponivel: boolean = overview === undefined ? true : (overview?.csvDisponivel ?? false);
   const fracoes: FracaoResumo[] = fracoesData?.resumo ?? [];
   const categorias: { categoria: string; count: number; total: number }[] = catData?.categorias ?? [];
 
@@ -174,7 +175,27 @@ export default function MovimentosBancariosPage() {
       {tab === "overview" && (
         <div className="space-y-6">
           {!stats ? (
-            <div className="text-center py-20 text-gray-500">A processar extracto bancário...</div>
+            !csvDisponivel ? (
+              /* CSV não encontrado no servidor */
+              <div className="flex flex-col items-center justify-center py-24 gap-4">
+                <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center text-3xl">📂</div>
+                <div className="text-center max-w-md">
+                  <p className="text-lg font-semibold text-gray-800 mb-2">Extracto bancário não encontrado</p>
+                  <p className="text-sm text-gray-500 mb-1">
+                    O servidor não encontrou nenhum ficheiro CSV de extracto bancário nos caminhos configurados.
+                  </p>
+                  <p className="text-xs text-gray-400 font-mono mt-3">
+                    Esperados em: <code>/tmp/bank_pdfs/</code>
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Importa o extracto via <strong>Importar Dados</strong> ou coloca o CSV manualmente no servidor.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              /* Ainda a carregar */
+              <div className="text-center py-20 text-gray-500">A processar extracto bancário...</div>
+            )
           ) : (
             <>
               {/* KPIs */}
