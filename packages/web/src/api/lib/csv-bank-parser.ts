@@ -471,7 +471,13 @@ export function parseCSV(filePath: string, conta: "condominio" | "obras"): Parse
 }
 
 // ─── CSV search paths ──────────────────────────────────────────────────────────
+// Ordem de prioridade: pasta persistente do projecto primeiro, /tmp como fallback
 const CSV_SEARCH_PATHS = [
+  // 1. packages/web/data/ — pasta persistente no repositório (destino preferido)
+  path.join(process.cwd(), "data"),
+  path.join(process.cwd(), "../data"),
+  path.join(import.meta.dir, "../../data"),
+  // 2. /tmp — fallback legado (volátil entre reinicios)
   "/tmp/bank_pdfs/2026/2026",
   "/tmp/bank_pdfs/2025_a/2025",
   "/tmp/bank_pdfs/2025/2025",

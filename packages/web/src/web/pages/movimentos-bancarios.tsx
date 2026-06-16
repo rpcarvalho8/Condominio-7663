@@ -587,10 +587,10 @@ export default function MovimentosBancariosPage() {
                         {ps.pago ? "Pago" : "Em dívida"}
                       </span>
                     </div>
-                    <div className="text-xs text-gray-500 truncate">{ps.nome}</div>
-                    <div className="text-sm font-medium text-gray-700 mt-1">{formatEuro(ps.amount)}</div>
-                    {ps.pagamentos?.length > 0 && (
-                      <div className="text-xs text-green-600 mt-1">{ps.pagamentos[0].data}</div>
+                    <div className="text-xs text-gray-500 truncate">{ps?.nome ?? "—"}</div>
+                    <div className="text-sm font-medium text-gray-700 mt-1">{formatEuro(ps?.amount ?? 0)}</div>
+                    {(ps?.pagamentos?.length ?? 0) > 0 && (
+                      <div className="text-xs text-green-600 mt-1">{ps?.pagamentos?.[0]?.data ?? "—"}</div>
                     )}
                   </div>
                 ))}
@@ -623,20 +623,20 @@ export default function MovimentosBancariosPage() {
                   <tbody className="divide-y divide-gray-100">
                     {(reconcData.autoCatEntradas as any[]).map((m: any, i: number) => (
                       <tr key={i} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{m.data}</td>
-                        <td className="px-4 py-2 text-gray-700 max-w-[200px] truncate" title={m.descritivo}>{m.descritivo}</td>
-                        <td className="px-4 py-2 text-right font-medium text-green-700">{formatEuro(m.montante)}</td>
+                        <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{m?.data ?? "—"}</td>
+                        <td className="px-4 py-2 text-gray-700 max-w-[200px] truncate" title={m?.descritivo}>{m?.descritivo ?? "—"}</td>
+                        <td className="px-4 py-2 text-right font-medium text-green-700">{formatEuro(m?.montante ?? 0)}</td>
                         <td className="px-4 py-2">
                           <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
-                            {m.categoria}
+                            {m?.categoria ?? "—"}
                           </span>
                         </td>
                         <td className="px-4 py-2">
-                          {m.subCategoria && (
+                          {m?.subCategoria && (
                             <span className="font-bold text-blue-700">{m.subCategoria}</span>
                           )}
                         </td>
-                        <td className="px-4 py-2 text-xs text-gray-500 max-w-[200px] truncate" title={m.nota}>{m.nota}</td>
+                        <td className="px-4 py-2 text-xs text-gray-500 max-w-[200px] truncate" title={m?.nota ?? undefined}>{m?.nota ?? "—"}</td>
                       </tr>
                     ))}
                   </tbody>

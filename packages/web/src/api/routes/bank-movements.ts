@@ -7,6 +7,8 @@ import { Hono } from "hono";
 import { requireAdmin } from "../middleware/auth";
 import { getCSVResults, getFracaoPaymentHistory, FRACOES_INFO, parseCSV } from "../lib/csv-bank-parser";
 import { PORTAO_AMOUNTS } from "../lib/reconciliation-engine";
+import { db } from "../database";
+import { bankTransactions } from "../database/schema";
 
 export const bankMovementsRoutes = new Hono()
 
@@ -18,9 +20,25 @@ export const bankMovementsRoutes = new Hono()
 
       const csvDisponivel = !!(condominio || obras);
 
+      // Quando não há CSV, buscar stats básicas da DB (transacções Enable Banking)
+      let dbStats: { count: number; totalEntradas: number; totalSaidas: number } | null = null;
+      if (!csvDisponivel) {
+        const rows = await db.select().from(bankTransactions);
+        if (rows.length > 0) {
+          const entradas = rows.filter(r => r.type === "CRDT" || (r.amount ?? 0) > 0);
+          const saidas   = rows.filter(r => r.type === "DBIT" || (r.amount ?? 0) < 0);
+          dbStats = {
+            count: rows.length,
+            totalEntradas: parseFloat(entradas.reduce((s, r) => s + Math.abs(r.amount ?? 0), 0).toFixed(2)),
+            totalSaidas:   parseFloat(saidas.reduce((s, r) => s + Math.abs(r.amount ?? 0), 0).toFixed(2)),
+          };
+        }
+      }
+
       return c.json({
         ok: true,
         csvDisponivel,
+        dbTransacoes: dbStats,
         condominio: condominio ? {
           ficheiro: condominio.ficheiro,
           totalMovimentos: condominio.totalMovimentos,
@@ -41,7 +59,6 @@ export const bankMovementsRoutes = new Hono()
   .get("/condominio", requireAdmin, async (c) => {
     try {
       const { condominio } = getCSVResults();
-      if (!condominio) return c.json({ ok: false, error: "CSV condomínio não encontrado" }, 404);
 
       const categoria    = c.req.query("categoria");
       const fracao       = c.req.query("fracao");
@@ -50,24 +67,77 @@ export const bankMovementsRoutes = new Hono()
       const page         = parseInt(c.req.query("page") ?? "1");
       const pageSize     = parseInt(c.req.query("pageSize") ?? "100");
 
-      let movs = condominio.movimentos;
+      // ── Fonte: CSV (histórico Santander) ──
+      if (condominio) {
+        let movs = condominio.movimentos;
+        if (categoria) movs = movs.filter(m => m.categoria === categoria);
+        if (fracao)    movs = movs.filter(m => m.subCategoria === fracao || m.fracaoIdentificada === fracao);
+        if (source)    movs = movs.filter(m => m.categoriaSource === source);
+        if (tipo)      movs = movs.filter(m => m.tipo === tipo);
+
+        const total = movs.length;
+        const start = (page - 1) * pageSize;
+        const paged = movs.slice(start, start + pageSize);
+
+        return c.json({
+          ok: true,
+          fonte: "csv",
+          total,
+          page,
+          pageSize,
+          pages: Math.ceil(total / pageSize),
+          movimentos: paged,
+          estatisticas: condominio.estatisticas,
+        });
+      }
+
+      // ── Fallback: bank_transactions (Enable Banking / sync live) ──
+      const rows = await db.select().from(bankTransactions);
+      if (rows.length === 0) {
+        return c.json({ ok: false, error: "CSV condomínio não encontrado e sem transacções na base de dados" }, 404);
+      }
+
+      // Mapear DB row → shape Movement
+      const mapped = rows.map(r => ({
+        dataOperacao:      r.date ? new Date((r.date as Date).getTime()).toISOString().slice(0, 10) : "—",
+        descritivo:        r.description ?? "—",
+        montante:          r.type === "DBIT" ? -Math.abs(r.amount ?? 0) : Math.abs(r.amount ?? 0),
+        tipo:              (r.type === "DBIT" ? "Saída" : "Entrada") as "Entrada" | "Saída",
+        categoria:         r.importType ?? "Não classificado",
+        subCategoria:      "",
+        categoriaSource:   "auto" as const,
+        notaCategorizacao: r.debtorName ?? r.creditorName ?? undefined,
+        fracaoIdentificada: undefined,
+      }));
+
+      // Aplicar filtros básicos
+      let movs = mapped;
       if (categoria) movs = movs.filter(m => m.categoria === categoria);
-      if (fracao)    movs = movs.filter(m => m.subCategoria === fracao || m.fracaoIdentificada === fracao);
-      if (source)    movs = movs.filter(m => m.categoriaSource === source);
       if (tipo)      movs = movs.filter(m => m.tipo === tipo);
 
       const total = movs.length;
       const start = (page - 1) * pageSize;
       const paged = movs.slice(start, start + pageSize);
 
+      const entradas = mapped.filter(m => m.tipo === "Entrada").reduce((s, m) => s + m.montante, 0);
+      const saidas   = mapped.filter(m => m.tipo === "Saída").reduce((s, m) => s + Math.abs(m.montante), 0);
+
       return c.json({
         ok: true,
+        fonte: "db",
         total,
         page,
         pageSize,
         pages: Math.ceil(total / pageSize),
         movimentos: paged,
-        estatisticas: condominio.estatisticas,
+        estatisticas: {
+          entradas:  parseFloat(entradas.toFixed(2)),
+          saidas:    parseFloat(saidas.toFixed(2)),
+          saldo:     parseFloat((entradas - saidas).toFixed(2)),
+          porCategoria: {},
+          porFracao: {},
+          pagamentosNaoIdentificados: [],
+        },
       });
     } catch (e: any) {
       return c.json({ ok: false, error: e.message }, 500);
